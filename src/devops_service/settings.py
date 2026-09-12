@@ -18,5 +18,8 @@ class Settings:
 
     @classmethod
     def from_env(cls):
-        return cls(api_key=os.environ["API_KEY"], jwt_secret=os.environ["JWT_SECRET"],
-                   redis_url=os.environ["REDIS_URL"])
+        return cls(
+            api_key=os.environ["API_KEY"],
+            jwt_secret=os.environ["JWT_SECRET"],
+            redis_url=os.environ["REDIS_URL"],
+        )
