@@ -1,0 +1,65 @@
+name: pichincha-devops
+x-app: &app
+  build: .
+  image: pichincha-devops:local
+  env_file: .env
+  environment:
+    REDIS_URL: redis://redis:6379/0
+  read_only: true
+  tmpfs: [/tmp]
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  depends_on:
+    redis:
+      condition: service_healthy
+  networks: [backend]
+services:
+  app1:
+    <<: *app
+  app2:
+    <<: *app
+  redis:
+    image: redis:7.4-alpine@sha256:ff02b58f971e7d7d156a1267e283fcbbeee91773b6aa36c49dac28ecfe28eadf
+    command: [redis-server, --appendonly, 'yes', --appendfsync, always, --maxmemory-policy, noeviction]
+    volumes: [redis-data:/data]
+    networks: [backend]
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+  kong:
+    image: kong:3.9.1@sha256:76c14b93e989f7f4418039f7f9789ca32564016211c86ac1a18022f4788e7b9c
+    environment:
+      KONG_ERROR_TEMPLATE_JSON: /config/error.txt
+      KONG_ERROR_TEMPLATE_PLAIN: /config/error.txt
+      KONG_ERROR_TEMPLATE_HTML: /config/error.txt
+      KONG_ERROR_TEMPLATE_XML: /config/error.txt
+      KONG_DATABASE: 'off'
+      KONG_DECLARATIVE_CONFIG: /config/kong.json
+      KONG_PROXY_LISTEN: 0.0.0.0:8443 ssl
+      KONG_ADMIN_LISTEN: 'off'
+      KONG_STATUS_LISTEN: 0.0.0.0:8100
+      KONG_SSL_CERT: /config/tls.crt
+      KONG_SSL_CERT_KEY: /config/tls.key
+      KONG_PROXY_ACCESS_LOG: 'off'
+      KONG_PROXY_ERROR_LOG: /dev/stderr
+      KONG_NGINX_WORKER_PROCESSES: '2'
+    volumes:
+      - ./.runtime:/config:ro
+    ports: ['127.0.0.1:8443:8443']
+    networks: [backend]
+    depends_on:
+      app1:
+        condition: service_healthy
+      app2:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, kong, health]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+networks:
+  backend:
+volumes:
+  redis-data:
